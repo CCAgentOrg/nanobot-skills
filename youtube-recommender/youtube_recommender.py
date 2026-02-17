@@ -66,15 +66,15 @@ def make_request(url):
 
 
 # ==================== YouTube Data API ====================
-def search_youtube(query, duration_filter, duration_label='short'):
+def search_youtube(query, duration_filter):
     """Search using YouTube Data API."""
     print(f'📡 Using YouTube Data API')
 
     # Map duration to YouTube API parameter
     video_duration = 'any'
-    if duration_label == 'long':
+    if duration_filter == DURATION_FILTERS['long']:
         video_duration = 'long'
-    elif duration_label == 'tiny':
+    elif duration_filter == DURATION_FILTERS['tiny']:
         video_duration = 'short'
 
     params = {
@@ -164,13 +164,13 @@ def search_youtube(query, duration_filter, duration_label='short'):
 
 
 # ==================== Invidious API ====================
-def search_invidious(query, duration_filter, instance=None, duration_label='short'):
+def search_invidious(query, duration_filter, instance=None):
     """Search using Invidious API with retry across multiple instances."""
     # Map duration to Invidious parameter
     duration_param = 'medium'
-    if duration_label == 'long':
+    if duration_filter == DURATION_FILTERS['long']:
         duration_param = 'long'
-    elif duration_label == 'tiny':
+    elif duration_filter == DURATION_FILTERS['tiny']:
         duration_param = 'short'
 
     params = {
@@ -400,13 +400,13 @@ def get_recommendations(topic, duration='short', backend=None, num_results=5):
         videos = []
 
         if backend == 'invidious':
-            videos = search_invidious(topic, DURATION_FILTERS[duration], duration_label=duration)
+            videos = search_invidious(topic, DURATION_FILTERS[duration])
         else:
             # Use YouTube Data API
             api_key = YOUTUBE_API_KEY or os.environ.get('YOUTUBE_API_KEY')
             if not api_key:
                 raise APIKeyError('YouTube Data API requires YOUTUBE_API_KEY environment variable')
-            videos = search_youtube(topic, DURATION_FILTERS[duration], duration_label=duration)
+            videos = search_youtube(topic, DURATION_FILTERS[duration])
 
         if not videos:
             return []

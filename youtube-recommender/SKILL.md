@@ -34,9 +34,14 @@ python youtube_recommender.py "cooking tips" tiny
 
 ## How to Execute
 
-1. **Check API Key**: Ensure `YOUTUBE_API_KEY` environment variable is set
-   - The script should auto-detect this from shell environment
-   - If not set, inform the user they need to set it
+1. **Check API Key**: The script requires `YOUTUBE_API_KEY` environment variable
+   - Auto-detects from shell environment
+   - Get YouTube API key from: https://console.cloud.google.com/
+   - Add to `~/.bashrc`:
+     ```bash
+     export YOUTUBE_API_KEY="your-api-key"
+     source ~/.bashrc
+     ```
 
 2. **Run the Script**: Execute using Python:
    ```bash
@@ -45,21 +50,26 @@ python youtube_recommender.py "cooking tips" tiny
    ```
 
 3. **Return Results**: Present the full output to the user, including:
-   - Video title and channel
-   - Duration and view count
-   - Explanation of why this video was recommended
-   - Direct YouTube link
+   - Top Pick with title, channel, duration, views, and explanation
+   - "Also worth watching" section with additional recommendations
+   - Direct YouTube links
 
 ## Output Format
 
 The script will return structured output with emojis:
-- 🎬 Top Pick (title)
-- 📺 Channel
+
+**Top Pick:**
+- 🎬 Title
+- 📺 Channel name
 - ⏱️ Duration
 - 👀 Views
 - 📅 Posted date
 - 📝 Why this video (explanation)
 - 🔗 Watch link
+
+**Also worth watching:**
+- 3 additional recommended videos
+- Each with duration, view count, and link
 
 ## Security Notes
 
@@ -74,10 +84,11 @@ The script will return structured output with emojis:
 1. Check if `YOUTUBE_API_KEY` is set: `echo $YOUTUBE_API_KEY`
 2. If not set, instruct user to add to `~/.bashrc`:
    ```bash
-   echo 'export YOUTUBE_API_KEY="their-key"' >> ~/.bashrc
+   echo 'export YOUTUBE_API_KEY="your-api-key"' >> ~/.bashrc
    source ~/.bashrc
    ```
-3. For API quota issues, suggest waiting or using Invidious backend
+3. For API quota issues, suggest checking quota in Google Cloud Console
+4. **Invidious backend is unreliable** - public instances frequently fail with 403/404 errors. Use YouTube API for reliable results.
 
 **Duration Filters:**
 - `tiny` = < 5 minutes (quick tips, overviews)

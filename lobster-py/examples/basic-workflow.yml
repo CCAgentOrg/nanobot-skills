@@ -1,0 +1,38 @@
+id: basic-example
+name: Basic Workflow Example
+description: Simple workflow demonstrating core lobster-py features
+
+variables:
+  project_name: "lobster-py"
+  version: "0.1.0"
+
+steps:
+  - id: step1
+    name: Welcome message
+    action: echo
+    params:
+      message: "🦞 Welcome to ${project_name} v${version}!"
+
+  - id: step2
+    name: List current directory
+    action: shell
+    params:
+      command: "ls -la"
+
+  - id: step3
+    name: Sleep for 2 seconds
+    action: sleep
+    params:
+      seconds: 2
+
+  - id: step4
+    name: Get system info
+    action: shell
+    params:
+      command: "uname -a"
+
+  - id: step5
+    name: Completion message
+    action: echo
+    params:
+      message: "✅ Workflow completed successfully!"

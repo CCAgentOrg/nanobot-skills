@@ -14,6 +14,7 @@ import sys
 import json
 import time
 import math
+import re
 from urllib.parse import urlencode
 from urllib.request import urlopen, Request, URLError, HTTPError
 
@@ -24,13 +25,17 @@ DURATION_FILTERS = {
     'long': {'min': 1200, 'max': None}  # 20+ minutes
 }
 
-# Invidious instances (updated list)
+# Invidious instances (updated list of known working instances)
+# Last updated: 2026-02-17
 INVIDIOUS_INSTANCES = [
-    'invidious.snopyta.org',
-    'yewtu.be',
-    'invidious.kavin.rocks',
-    'invidious.namazso.eu',
-    'inv.riverside.rocks'
+    'invidious.io.lol',
+    'invidious.privacydev.net',
+    'invidious.perennialte.ch',
+    'invidious.nerdvpn.de',
+    'iv.ggtyler.dev',
+    'invidious.private.coffee',
+    'inv.riverside.rocks',  # fallback
+    'yewtu.be',  # fallback
 ]
 
 # Config
@@ -119,17 +124,29 @@ def search_youtube(query, duration_filter):
         views = int(stats['statistics'].get('viewCount', 0))
         likes = int(stats['statistics'].get('likeCount', 0))
 
-        # Parse duration
+        # Parse ISO 8601 duration (e.g., PT5M30S, PT1H30M, PT30S)
         duration_str = stats['contentDetails']['duration']
-        hours = minutes = seconds = 0
-        if 'H' in duration_str:
-            hours = int(duration_str.split('H')[0].replace('PT', ''))
-            duration_str = duration_str.split('H')[1]
-        if 'M' in duration_str:
-            minutes = int(duration_str.split('M')[0].replace('T', ''))
-            duration_str = duration_str.split('M')[1]
-        if 'S' in duration_str:
-            seconds = int(duration_str.split('S')[0].replace('T', '').replace('PT', ''))
+
+        # Robust regex-based parser
+        # Pattern: PT((\d+)H)?((\d+)M)?((\d+)S)?
+        duration_pattern = re.compile(r'PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?')
+        match = duration_pattern.fullmatch(duration_str)
+
+        if match:
+            hours = int(match.group(1)) if match.group(1) else 0
+            minutes = int(match.group(2)) if match.group(2) else 0
+            seconds = int(match.group(3)) if match.group(3) else 0
+        else:
+            # Fallback: try old method if regex fails
+            hours = minutes = seconds = 0
+            if 'H' in duration_str:
+                hours = int(duration_str.split('H')[0].replace('PT', ''))
+                duration_str = duration_str.split('H')[1]
+            if 'M' in duration_str:
+                minutes = int(duration_str.split('M')[0].replace('T', ''))
+                duration_str = duration_str.split('M')[1]
+            if 'S' in duration_str:
+                seconds = int(duration_str.split('S')[0].replace('T', '').replace('PT', ''))
 
         total_seconds = (hours * 3600) + (minutes * 60) + seconds
 
@@ -148,10 +165,7 @@ def search_youtube(query, duration_filter):
 
 # ==================== Invidious API ====================
 def search_invidious(query, duration_filter, instance=None):
-    """Search using Invidious API."""
-    instance = instance or INVIDIOUS_INSTANCE
-    print(f'📡 Using Invidious: {instance}')
-
+    """Search using Invidious API with retry across multiple instances."""
     # Map duration to Invidious parameter
     duration_param = 'medium'
     if duration == 'long':
@@ -166,28 +180,49 @@ def search_invidious(query, duration_filter, instance=None):
         'duration': duration_param
     }
 
-    url = f'https://{instance}/api/v1/search?{urlencode(params)}'
-    search_result = make_request(url)
+    # Try specific instance first, then fallback to pool
+    instances_to_try = []
+    if instance:
+        instances_to_try.append(instance)
+    instances_to_try.extend(INVIDIOUS_INSTANCES)
 
-    if not search_result or len(search_result) == 0:
-        return []
+    last_error = None
 
-    videos = []
-    for item in search_result:
-        if item.get('type') != 'video':
+    for inst in instances_to_try:
+        try:
+            print(f'📡 Using Invidious: {inst}')
+            url = f'https://{inst}/api/v1/search?{urlencode(params)}'
+            search_result = make_request(url)
+
+            if not search_result or len(search_result) == 0:
+                continue
+
+            videos = []
+            for item in search_result:
+                if item.get('type') != 'video':
+                    continue
+
+                videos.append({
+                    'videoId': item['videoId'],
+                    'title': item['title'],
+                    'author': item.get('author', item.get('channelTitle', 'Unknown channel')),
+                    'lengthSeconds': item.get('lengthSeconds', 0),
+                    'viewCount': item.get('viewCount', 0),
+                    'likeCount': item.get('likeCount', 0),
+                    'published': item.get('published')
+                })
+
+            if videos:
+                print(f'✓ Found {len(videos)} videos')
+                return videos
+
+        except Exception as e:
+            last_error = e
+            print(f'✗ Failed: {e}')
             continue
 
-        videos.append({
-            'videoId': item['videoId'],
-            'title': item['title'],
-            'author': item['author'],
-            'lengthSeconds': item.get('lengthSeconds', 0),
-            'viewCount': item.get('viewCount', 0),
-            'likeCount': 0,
-            'published': item.get('published')
-        })
-
-    return videos
+    # All instances failed
+    raise Exception(f'All Invidious instances failed. Last error: {last_error}')
 
 
 # ==================== Common Functions ====================
@@ -316,10 +351,121 @@ def print_recommendation(video):
 
 
 # ==================== Main ====================
-def recommend():
-    """Main recommendation function."""
-    global topic, duration
+class YouTubeRecommenderError(Exception):
+    """Base exception for YouTube Recommender errors."""
+    pass
 
+
+class APIKeyError(YouTubeRecommenderError):
+    """Raised when YouTube API key is missing or invalid."""
+    pass
+
+
+class BackendError(YouTubeRecommenderError):
+    """Raised when backend fails to fetch results."""
+    pass
+
+
+def get_recommendations(topic, duration='short', backend=None, num_results=5):
+    """
+    Get YouTube video recommendations.
+
+    Args:
+        topic (str): Search topic/query
+        duration (str): Duration filter - 'tiny', 'short', or 'long' (default: 'short')
+        backend (str): 'youtube' or 'invidious' (default: auto-detect)
+        num_results (int): Number of recommendations to return (default: 5)
+
+    Returns:
+        list: List of video dicts with keys: videoId, title, author, lengthSeconds,
+              viewCount, likeCount, published, score
+
+    Raises:
+        ValueError: If duration is invalid
+        APIKeyError: If YouTube API key is missing or invalid
+        BackendError: If backend fails to fetch results
+    """
+    # Validate duration
+    duration = duration.lower()
+    if duration not in DURATION_FILTERS:
+        raise ValueError(f'Invalid duration "{duration}". Use: tiny, short, or long')
+
+    # Auto-detect backend if not specified
+    if backend is None:
+        backend = BACKEND
+    backend = backend.lower()
+
+    # Fetch videos
+    try:
+        videos = []
+
+        if backend == 'invidious':
+            videos = search_invidious(topic, DURATION_FILTERS[duration])
+        else:
+            # Use YouTube Data API
+            api_key = YOUTUBE_API_KEY or os.environ.get('YOUTUBE_API_KEY')
+            if not api_key:
+                raise APIKeyError('YouTube Data API requires YOUTUBE_API_KEY environment variable')
+            videos = search_youtube(topic, DURATION_FILTERS[duration])
+
+        if not videos:
+            return []
+
+        # Filter by duration
+        duration_filter = DURATION_FILTERS[duration]
+        filtered = [
+            v for v in videos
+            if (not duration_filter['max'] or v['lengthSeconds'] <= duration_filter['max'])
+            and v['lengthSeconds'] >= duration_filter['min']
+        ]
+
+        if not filtered:
+            return []
+
+        # Calculate scores and sort
+        scored = [{**v, 'score': calculate_score(v)} for v in filtered]
+        scored.sort(key=lambda x: x['score'], reverse=True)
+
+        return scored[:num_results]
+
+    except Exception as error:
+        if isinstance(error, (ValueError, APIKeyError)):
+            raise
+        raise BackendError(str(error))
+
+
+def format_recommendation(video, include_explanation=True):
+    """
+    Format a video recommendation as a string.
+
+    Args:
+        video (dict): Video data dict
+        include_explanation (bool): Include "Why this video" section
+
+    Returns:
+        str: Formatted recommendation string
+    """
+    view_tier = get_view_tier(video['viewCount'])
+    explanation = generate_explanation(video, view_tier) if include_explanation else ''
+
+    lines = [
+        f'🎬 {video["title"]}',
+        f'📺 Channel: {video["author"]}',
+        f'⏱️ Duration: {format_duration(video["lengthSeconds"])}',
+        f'👀 Views: {format_number(video["viewCount"])} ({view_tier})',
+        f'📅 Posted: {time_ago(video["published"])}',
+    ]
+
+    if explanation:
+        lines.extend(['', '📝 Why this video:', f'   {explanation}'])
+
+    lines.append(f'🔗 https://youtube.com/watch?v={video["videoId"]}')
+
+    return '\n'.join(lines)
+
+
+def recommend():
+    """Main recommendation function - CLI interface."""
     # Parse arguments
     args = sys.argv[1:]
 
@@ -337,58 +483,36 @@ def recommend():
     topic = args[0]
     duration = args[1].lower()
 
-    if duration not in DURATION_FILTERS:
-        print(f'❌ Invalid duration "{duration}". Use: tiny, short, or long')
-        sys.exit(1)
-
     print(f'🔍 Searching for: "{topic}" ({duration} videos)\n')
 
     try:
-        videos = []
+        videos = get_recommendations(topic, duration)
 
-        if BACKEND == 'invidious':
-            # Try Invidious with fallback
-            videos = search_invidious(topic, DURATION_FILTERS[duration])
-        else:
-            # Use YouTube Data API
-            if not YOUTUBE_API_KEY:
-                print('❌ YouTube Data API requires YOUTUBE_API_KEY environment variable')
-                print('   Get one from: https://console.cloud.google.com/')
-                print('   Or use Invidious: export BACKEND="invidious"')
-                sys.exit(1)
-            videos = search_youtube(topic, DURATION_FILTERS[duration])
-
-        if not videos or len(videos) == 0:
+        if not videos:
             print(f'❌ No {duration} videos found for this topic')
             return
 
-        # Filter by duration
-        duration_filter = DURATION_FILTERS[duration]
-        filtered = [
-            v for v in videos
-            if (not duration_filter['max'] or v['lengthSeconds'] <= duration_filter['max'])
-            and v['lengthSeconds'] >= duration_filter['min']
-        ]
+        # Print top recommendation with full details
+        print_recommendation(videos[0])
 
-        if len(filtered) == 0:
-            print(f'❌ No {duration} videos found after filtering')
-            return
-
-        # Calculate scores and pick best
-        scored = [{**v, 'score': calculate_score(v)} for v in filtered]
-        scored.sort(key=lambda x: x['score'], reverse=True)
-
-        print_recommendation(scored[0])
+        # Print runner-ups
+        if len(videos) > 1:
+            print(f'\n📋 Also worth watching:')
+            for video in videos[1:4]:
+                print(f'   • {video["title"]}')
+                print(f'     {format_duration(video["lengthSeconds"])} • {format_number(video["viewCount"])} views')
+                print(f'     https://youtube.com/watch?v={video["videoId"]}')
+                print()
 
     except Exception as error:
         print(f'\n❌ Error: {error}')
 
-        if BACKEND == 'invidious':
-            print('\n💡 Tip: Try using YouTube Data API instead:')
+        if 'API key' in str(error):
+            print('\n💡 Get YouTube API key: https://console.cloud.google.com/')
+            print('   Or use Invidious: export BACKEND="invidious"')
+        elif 'Invidious' in str(error) or BACKEND == 'invidious':
+            print('\n💡 Try using YouTube Data API instead:')
             print('   export YOUTUBE_API_KEY="your-api-key"')
-            print('   export BACKEND="youtube"')
-        else:
-            print('\n💡 Check your API key is valid and has YouTube Data API v3 enabled')
         sys.exit(1)
 
 

@@ -1,0 +1,4 @@
+python/cpython
+anomalyco/opencode
+code-yeongyu/oh-my-opencode
+nanobot-ai/nanobot

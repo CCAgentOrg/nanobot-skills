@@ -10,6 +10,9 @@ Track and monitor GitHub repositories with latest release, version number, and s
 ### youtube-recommender
 Recommends relevant YouTube videos for any topic, with duration filtering and engagement-based ranking.
 
+### zai-quota
+Check your Z.AI GLM Coding Plan usage statistics with real-time quota monitoring, plan tier detection, and token usage tracking.
+
 ## Installation
 
 Copy skill directories to `/home/ubuntu/.nanobot/workspace/skills/` and restart nanobot.

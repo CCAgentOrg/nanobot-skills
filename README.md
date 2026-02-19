@@ -13,6 +13,12 @@ Recommends relevant YouTube videos for any topic, with duration filtering and en
 ### zai-quota
 Check your Z.AI GLM Coding Plan usage statistics with real-time quota monitoring, plan tier detection, and token usage tracking.
 
+### xpost
+Draft engaging X (Twitter) posts and threads with optimal structure, formatting, and engagement elements. Includes templates, hooks library, and real examples.
+
+### x-poster
+Post tweets to X (Twitter) from nanobot. Supports text tweets, images, threads, replies, and tweet deletion using the X API v2.
+
 ## Installation
 
 Copy skill directories to `/home/ubuntu/.nanobot/workspace/skills/` and restart nanobot.

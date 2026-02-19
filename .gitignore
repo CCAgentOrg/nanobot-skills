@@ -1,1 +1,3 @@
 lobster-py/
+__pycache__/
+*.pyc

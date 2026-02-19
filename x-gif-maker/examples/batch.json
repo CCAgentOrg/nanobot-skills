@@ -1,0 +1,36 @@
+[
+  {
+    "text": "🚀 New Feature!",
+    "output": "feature.gif",
+    "style": "slide_down",
+    "bg_colors": ["#667eea", "#764ba2"],
+    "text_color": "#ffffff",
+    "signature": "🤖 nanobot"
+  },
+  {
+    "text": "Bug Fixes!",
+    "output": "fix.gif",
+    "style": "bounce",
+    "bg_colors": ["#ff6b6b", "#feca57"]
+  },
+  {
+    "text": "API Update",
+    "output": "api.gif",
+    "style": "typewriter",
+    "bg_colors": ["#0f0f0f", "#2d3436"],
+    "text_color": "#00ff88"
+  },
+  {
+    "text": "Breaking News",
+    "output": "news.gif",
+    "style": "shake",
+    "bg_colors": ["#f12711", "#f5af19"]
+  },
+  {
+    "text": "v2.0 Released",
+    "output": "release.gif",
+    "style": "glitch",
+    "bg_colors": ["#0f0f0f", "#1a1a1a"],
+    "text_color": "#00ff88"
+  }
+]
